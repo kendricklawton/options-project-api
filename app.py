@@ -11,7 +11,7 @@ app = Flask(__name__)
 # Load environment variables
 load_dotenv()
 
-# API keys and site URL
+# Environment variables
 alpha_vantage_api_key = os.getenv("ALPHA_VANTAGE_API_KEY")
 site_url = os.getenv("SITE_URL")
 
