@@ -1,0 +1,25 @@
+# Ignore Python bytecode files
+__pycache__
+*.pyc
+*.pyo
+
+# Ignore virtual environment folder
+venv/
+env/
+.env
+
+# Ignore logs
+*.log
+
+# Ignore .git directory and Git config files
+.git
+.gitignore
+
+
+# Ignore other system files (e.g., macOS, Windows)
+.DS_Store
+Thumbs.db
+
+# Ignore other directories you don’t need in the image
+tests/
+node_modules/
