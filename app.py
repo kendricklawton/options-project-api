@@ -30,11 +30,11 @@ def home():
 
 
 # Function to get symbol data from Alpha Vantage
-def get_symbol_data_alpha_vantage(symbol):
-    url = f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol={symbol}apikey={alpha_vantage_api_key}"
-    response = requests.get(url)
-    index_data = response.json()
-    return index_data
+# def get_symbol_data_alpha_vantage(symbol):
+#     url = f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol={symbol}apikey={alpha_vantage_api_key}"
+#     response = requests.get(url)
+#     index_data = response.json()
+#     return index_data
 
 
 # Function to get symbol data from Yahoo Finance
@@ -42,6 +42,7 @@ def get_symbol_data_yfinance(symbol):
     stock = yf.Ticker(symbol.strip().lower())
     stock_info = stock.info
     return stock_info
+
 
 
 @app.route("/indexes-data", methods=["GET"])
@@ -55,17 +56,16 @@ def fetch_indexes_data():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
-@app.route("/news-data", methods=["GET"])
-@cross_origin(origin=site_url)
-def fetch_news_data():
-    try:
-        url = f"https://www.alphavantage.co/query?function=NEWS_SENTIMENT&apikey={alpha_vantage_api_key}"
-        response = requests.get(url)
-        news_data = response.json()
-        return jsonify(news_data)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+# @app.route("/news-data", methods=["GET"])
+# @cross_origin(origin=site_url)
+# def fetch_news_data():
+#     try:
+#         url = f"https://www.alphavantage.co/query?function=NEWS_SENTIMENT&apikey={alpha_vantage_api_key}"
+#         response = requests.get(url)
+#         news_data = response.json()
+#         return jsonify(news_data)
+#     except Exception as e:
+#         return jsonify({"error": str(e)}), 500
 
 
 @app.route("/stock-data", methods=["GET"])
