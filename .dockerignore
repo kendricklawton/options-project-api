@@ -23,3 +23,16 @@ Thumbs.db
 # Ignore other directories you don’t need in the image
 tests/
 node_modules/
+
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.db
+*.sqlite3
+*.log
+*.env
+.DS_Store
+.git
+.gitignore
+.vscode
