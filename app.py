@@ -1,6 +1,6 @@
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request
-from flask_cors import CORS
+from flask_cors import cross_origin, CORS
 import os
 import requests
 import yfinance as yf
@@ -24,6 +24,7 @@ alpha_vantage_url = "https://www.alphavantage.co/query"
 
 # Route for home
 @app.route("/", methods=["GET"])
+@cross_origin(origin=site_url)
 def home():
     return "Options Project API"
 
@@ -44,6 +45,7 @@ def get_symbol_data_yfinance(symbol):
 
 
 @app.route("/indexes-data", methods=["GET"])
+@cross_origin(origin=site_url)
 def fetch_indexes_data():
     try:
         dia_data = get_symbol_data_yfinance("DIA")
@@ -55,6 +57,7 @@ def fetch_indexes_data():
 
 
 @app.route("/news-data", methods=["GET"])
+@cross_origin(origin=site_url)
 def fetch_news_data():
     try:
         url = f"https://www.alphavantage.co/query?function=NEWS_SENTIMENT&apikey={alpha_vantage_api_key}"
@@ -66,6 +69,7 @@ def fetch_news_data():
 
 
 @app.route("/stock-data", methods=["GET"])
+@cross_origin(origin=site_url)
 def fetch_stock_data():
     symbol = request.args.get("symbol")
     expiration_date = request.args.get("expirationDate")
@@ -108,6 +112,7 @@ def fetch_stock_data():
 
 
 @app.route("/watch-list-data", methods=["GET"])
+@cross_origin(origin=site_url)
 def fetch_watch_list_data():
     watch_list = request.args.get("watch_list")
     try:
