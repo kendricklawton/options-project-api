@@ -4,6 +4,7 @@ from flask_cors import cross_origin, CORS
 import os
 import requests
 import yfinance as yf
+import pandas as pd
 
 # Initialize Flask application
 app = Flask(__name__)
@@ -42,7 +43,6 @@ def get_symbol_data_yfinance(symbol):
     stock = yf.Ticker(symbol.strip().lower())
     stock_info = stock.info
     return stock_info
-
 
 
 @app.route("/indexes-data", methods=["GET"])
@@ -95,15 +95,25 @@ def fetch_stock_data():
         ) / 2
 
         calls = option_chain.calls.fillna(value=0)
-        strikes = option_chain.calls[["strike"]].fillna(value=0)
+        call_strikes = option_chain.calls[["strike"]].fillna(value=0)
         puts = option_chain.puts.fillna(value=0)
+        put_strikes = option_chain.puts[["strike"]].fillna(value=0)
+
+        # Merge strikes from calls and puts
+        all_strikes = pd.concat([calls[["strike"]], puts[["strike"]]]).drop_duplicates()
+
+        # Merge the strikes with calls and puts
+        calls = all_strikes.merge(calls, on="strike", how="outer").fillna(0)
+        puts = all_strikes.merge(puts, on="strike", how="outer").fillna(0)
+
+        call_strikes = calls["strike"].tolist()
 
         response = {
             "calls": calls.to_dict(orient="records"),
             "dates": dates,
             "puts": puts.to_dict(orient="records"),
             "info": stock_info,
-            "strikes": strikes.to_dict(orient="records"),
+            "strikes": call_strikes,
         }
 
         return jsonify(response)
