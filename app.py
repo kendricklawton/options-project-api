@@ -14,10 +14,21 @@ load_dotenv()
 
 # Environment variables
 alpha_vantage_api_key = os.getenv("ALPHA_VANTAGE_API_KEY")
-site_url = os.getenv("SITE_URL")
+site_url_one = os.getenv("SITE_URL_ONE")
+site_url_two = os.getenv("SITE_URL_TWO")
+site_url_three = os.getenv("SITE_URL_THREE")
 
 # Enable CORS for specific origins
-CORS(app, origins=[site_url])
+CORS(app, origins=[site_url_one, site_url_two, site_url_three])
+
+
+# Middleware to check the Origin header
+@app.before_request
+def before_request():
+    origin = request.headers.get("Origin")
+    if origin not in [site_url_one, site_url_two, site_url_three]:
+        return jsonify({"error": "Invalid Origin"}), 403
+
 
 # Alpha Vantage API URL
 alpha_vantage_url = "https://www.alphavantage.co/query"
@@ -25,7 +36,6 @@ alpha_vantage_url = "https://www.alphavantage.co/query"
 
 # Route for home
 @app.route("/", methods=["GET"])
-@cross_origin(origin=site_url)
 def home():
     return "Options Project API"
 
@@ -46,7 +56,6 @@ def get_symbol_data_yfinance(symbol):
 
 
 @app.route("/indexes-data", methods=["GET"])
-@cross_origin(origin=site_url)
 def fetch_indexes_data():
     try:
         dia_data = get_symbol_data_yfinance("DIA")
@@ -55,6 +64,7 @@ def fetch_indexes_data():
         return jsonify({"DIA": dia_data, "QQQ": qqq_data, "SPY": spy_data})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 # @app.route("/news-data", methods=["GET"])
 # @cross_origin(origin=site_url)
@@ -69,7 +79,6 @@ def fetch_indexes_data():
 
 
 @app.route("/stock-data", methods=["GET"])
-@cross_origin(origin=site_url)
 def fetch_stock_data():
     symbol = request.args.get("symbol")
     expiration_date = request.args.get("expirationDate")
@@ -122,7 +131,6 @@ def fetch_stock_data():
 
 
 @app.route("/watch-list-data", methods=["GET"])
-@cross_origin(origin=site_url)
 def fetch_watch_list_data():
     watch_list = request.args.get("watch_list")
     try:
@@ -140,6 +148,7 @@ def fetch_watch_list_data():
         return jsonify(response)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
