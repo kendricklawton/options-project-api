@@ -55,15 +55,15 @@ def get_symbol_data_yfinance(symbol):
     return stock_info
 
 
-@app.route("/indexes-data", methods=["GET"])
-def fetch_indexes_data():
-    try:
-        dia_data = get_symbol_data_yfinance("DIA")
-        qqq_data = get_symbol_data_yfinance("QQQ")
-        spy_data = get_symbol_data_yfinance("SPY")
-        return jsonify({"DIA": dia_data, "QQQ": qqq_data, "SPY": spy_data})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+# @app.route("/indexes-data", methods=["GET"])
+# def fetch_indexes_data():
+#     try:
+#         dia_data = get_symbol_data_yfinance("DIA")
+#         qqq_data = get_symbol_data_yfinance("QQQ")
+#         spy_data = get_symbol_data_yfinance("SPY")
+#         return jsonify({"DIA": dia_data, "QQQ": qqq_data, "SPY": spy_data})
+#     except Exception as e:
+#         return jsonify({"error": str(e)}), 500
 
 
 # @app.route("/news-data", methods=["GET"])
@@ -78,16 +78,78 @@ def fetch_indexes_data():
 #         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/stock-data", methods=["GET"])
+@app.route("/data", methods=["GET"])
 def fetch_stock_data():
     symbol = request.args.get("symbol")
     expiration_date = request.args.get("expirationDate")
 
-    if not symbol:
-        return jsonify({"error": "Missing Symbol"}), 400
+    # if not symbol:
+    #     return jsonify({"error": "Missing Symbol"}), 400
 
     try:
-        stock = yf.Ticker(symbol.lower())
+        dia_data = get_symbol_data_yfinance("DIA")
+        qqq_data = get_symbol_data_yfinance("QQQ")
+        spy_data = get_symbol_data_yfinance("SPY")
+
+        index_data = {
+            "DIA": dia_data,
+            "QQQ": qqq_data,
+            "SPY": spy_data
+        }
+
+        # aapl_data = get_symbol_data_yfinance("AAPL")
+        # tsla_data = get_symbol_data_yfinance("TSLA")
+        # amzn_data = get_symbol_data_yfinance("AMZN")
+        # googl_data = get_symbol_data_yfinance("GOOGL")
+        # msft_data = get_symbol_data_yfinance("MSFT")
+        # fb_data = get_symbol_data_yfinance("META")
+        # nvda_data = get_symbol_data_yfinance("NVDA")
+        # pypl_data = get_symbol_data_yfinance("PYPL")
+        # nflx_data = get_symbol_data_yfinance("NFLX")
+        # wmt_data = get_symbol_data_yfinance("WMT")
+        # jnj_data = get_symbol_data_yfinance("JNJ")
+        # jpm_data = get_symbol_data_yfinance("JPM")
+        # brk_data = get_symbol_data_yfinance("BRK-B")
+        # pg_data = get_symbol_data_yfinance("PG")
+        # v_data = get_symbol_data_yfinance("V")
+        # hd_data = get_symbol_data_yfinance("HD")
+        # dis_data = get_symbol_data_yfinance("DIS")
+        # ma_data = get_symbol_data_yfinance("MA")
+        # baba_data = get_symbol_data_yfinance("BABA")
+        # bac_data = get_symbol_data_yfinance("BAC")
+
+        # popular_data = {
+        #     "AAPL": aapl_data,
+        #     "TSLA": tsla_data,
+        #     "AMZN": amzn_data,
+        #     "GOOGL": googl_data,
+        #     "MSFT": msft_data,
+        #     "FB": fb_data,
+        #     "NVDA": nvda_data,
+        #     "PYPL": pypl_data,
+        #     "NFLX": nflx_data,
+        #     "WMT": wmt_data,
+        #     "JNJ": jnj_data,
+        #     "JPM": jpm_data,
+        #     "BRK-B": brk_data,
+        #     "PG": pg_data,
+        #     "V": v_data,
+        #     "HD": hd_data,
+        #     "DIS": dis_data,
+        #     "MA": ma_data,
+        #     "BABA": baba_data,
+        #     "BAC": bac_data
+        # }
+
+        if not symbol:
+            response = {
+                "indexes": index_data,
+                # "popular": popular_data
+            }
+            return jsonify(response)
+
+        stock = yf.Ticker(symbol.strip().lower())
+        
         dates = list(stock.options)
         stock_info = stock.info
 
@@ -123,6 +185,8 @@ def fetch_stock_data():
             "puts": puts.to_dict(orient="records"),
             "info": stock_info,
             "strikes": call_strikes,
+            "indexes": index_data,
+            # "popular": popular_data
         }
 
         return jsonify(response)
@@ -130,24 +194,24 @@ def fetch_stock_data():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/watch-list-data", methods=["GET"])
-def fetch_watch_list_data():
-    watch_list = request.args.get("watch_list")
-    try:
-        if watch_list:
-            watch_list_symbols = watch_list.split(",")
-        watch_list_data = {}
-        for symbol in watch_list_symbols:
-            stock_info = get_symbol_data_yfinance(symbol)
-            watch_list_data[symbol] = stock_info
+# @app.route("/watch-list-data", methods=["GET"])
+# def fetch_watch_list_data():
+#     watch_list = request.args.get("watch_list")
+#     try:
+#         if watch_list:
+#             watch_list_symbols = watch_list.split(",")
+#         watch_list_data = {}
+#         for symbol in watch_list_symbols:
+#             stock_info = get_symbol_data_yfinance(symbol)
+#             watch_list_data[symbol] = stock_info
 
-        response = {
-            "watchList": watch_list_data,
-        }
+#         response = {
+#             "watchList": watch_list_data,
+#         }
 
-        return jsonify(response)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+#         return jsonify(response)
+#     except Exception as e:
+#         return jsonify({"error": str(e)}), 500
 
 
 if __name__ == "__main__":
