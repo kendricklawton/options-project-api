@@ -3,6 +3,8 @@ from gevent import monkey
 
 monkey.patch_all()
 
+import pytz
+from datetime import datetime, date
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request
 from flask_cors import CORS
@@ -44,6 +46,53 @@ socketio = SocketIO(
 user_tasks = {}
 
 
+# List of market holidays (example for 2025)
+MARKET_HOLIDAYS = [
+    date(2025, 1, 1),  # New Year's Day
+    date(2025, 7, 4),  # Independence Day
+    date(2025, 11, 27),  # Thanksgiving Day
+    date(2025, 12, 25),  # Christmas Day
+]
+
+
+# Function to check if the stock market is open
+def is_market_open():
+    # # Define the timezone for Eastern Time (ET)
+    # eastern = pytz.timezone("US/Eastern")
+    # now = datetime.now(eastern)
+
+    # # Define market open and close times
+    # market_open = now.replace(hour=9, minute=30, second=0, microsecond=0)
+    # market_close = now.replace(hour=16, minute=0, second=0, microsecond=0)
+
+    # # Check if today is a weekday (Monday to Friday)
+    # if now.weekday() >= 5:  # 5 = Saturday, 6 = Sunday
+    #     return False
+
+    # # Check if today is a market holiday
+    # if now.date() in MARKET_HOLIDAYS:
+    #     return False
+
+    # # Check if the current time is within market hours
+    # if market_open <= now <= market_close:
+    #     return True
+
+    return False
+
+
+# Function to close all market tasks
+def close_market_tasks():
+    print("Closing market tasks...")
+    for sid, task in user_tasks.items():
+        # Signal the stop event to stop the task
+        task["stop_event"].set()
+        # Kill the greenlet thread
+        task["thread"].kill()
+    # Clear the user_tasks dictionary
+    user_tasks.clear()
+    print("All market tasks have been stopped and cleared.")
+
+
 # Function to get symbol data from Yahoo Finance
 def get_symbol_data_yfinance(symbol):
     stock = yf.Ticker(symbol.strip().lower())
@@ -60,24 +109,36 @@ def send_index_data():
             spy = get_symbol_data_yfinance("SPY")
             dia = get_symbol_data_yfinance("DIA")
             socketio.emit(
-                "index_data",
+                "data",
                 {
                     "QQQ": qqq,
                     "SPY": spy,
                     "DIA": dia,
                 },
-                namespace="/index",
+                namespace="/indexes",
             )
             gevent.sleep(15)  # Wait for 15 seconds
     except Exception as e:
-        socketio.emit("error", {"error": str(e)}, namespace="/index")
+        socketio.emit("error", {"error": str(e)}, namespace="/indexes")
 
 
 # Function to fetch stock data and emit updates every 15 seconds
-def send_stock_data( symbol, sid, stop_event, expiration_date, near_price, total_strikes ):
-    print( f"Sending stock data for symbol: {symbol} to sid: {sid} with expiration date: {expiration_date}" )
+def send_stock_data(
+    symbol, sid, stop_event, expiration_date, near_price, total_strikes
+):
+    print(
+        f"Sending stock data for symbol: {symbol} to sid: {sid} with expiration date: {expiration_date}"
+    )
+
     try:
         while not stop_event.is_set():
+            if not is_market_open():
+                print("Market is closed. Stopping tasks...")
+                close_market_tasks()
+                emit(
+                    "error", {"error": "Stock Market Closed - Live Data Not Available"}
+                )
+                break
             stock = yf.Ticker(symbol.strip().lower())
             dates = list(stock.options)
             stock_info = stock.info
@@ -111,7 +172,7 @@ def send_stock_data( symbol, sid, stop_event, expiration_date, near_price, total
 
             strikes = calls["strike"].tolist()
             socketio.emit(
-                "stock_data",
+                "data",
                 {
                     "calls": calls.to_dict(orient="records"),
                     "dates": dates,
@@ -147,6 +208,7 @@ def home():
     return "Options Project API"
 
 
+# Route for Stock Data
 @app.route("/stock-data", methods=["GET"])
 def fetch_stock_data():
     symbol = request.args.get("symbol")
@@ -197,6 +259,7 @@ def fetch_stock_data():
         return jsonify({"error": str(e)}), 500
 
 
+# Route for Indexes Data
 @app.route("/indexes-data", methods=["GET"])
 def fetch_indexes_list_data():
     try:
@@ -211,53 +274,84 @@ def fetch_indexes_list_data():
         return jsonify({"error": str(e)}), 500
 
 
-@socketio.on("connect", namespace="/index")
-def on_connect():
-    print("Connected to index namespace")
-    emit("message", {"message": "Connected to stock namespace"})
+# SOCKET IO NAMESPACES #
 
 
-@socketio.on("disconnect", namespace="/index")
-def on_disconnect(sid):
-    if sid in user_tasks:
-        # Stop the task gracefully if it exists
-        user_tasks[sid]["stop_event"].set()
-        user_tasks[sid]["thread"].join()
-        del user_tasks[sid]
-    print("Disconnected from stock namespace")
-    emit("disconnect", {"message": "Disconnected from stock namespace"})
-
-
-@socketio.on("subscribe", namespace="/index")
-def on_subscribe(data):
-    sid = request.sid
-
-    symbol = data.get("symbol")
-    if not symbol:
-        emit("error", {"error": "Symbol is required"})
+# Index Namespaces
+@socketio.on("connect", namespace="/indexes")
+def on_connect_indexes():
+    try:
+        if not is_market_open():
+            print("Market is closed. Closing all tasks...")
+            close_market_tasks()  # Stop all tasks and clear the dictionary
+            emit("error", {"error": "Stock Market Closed - Live Data Not Available"})
+            return
+        print("Connected to stock namespace")
+        emit("message", {"message": "Connected to stock namespace"})
+    except Exception as e:
+        emit("error", {"error": str(e)})
         return
 
-    # Stop any existing task for this user
-    if sid in user_tasks:
-        user_tasks[sid]["stop_event"].set()
-        user_tasks[sid]["thread"].join()
 
-    # Create a new stop event and thread for the subscription
-    stop_event = gevent.event.Event()
-    thread = gevent.spawn(send_index_data)
-    user_tasks[sid] = {"thread": thread, "stop_event": stop_event}
-    print("Subscribe - User Tasks:", user_tasks)
-    emit("message", {"message": f"Subscribed to symbol: {symbol}"})
+@socketio.on("disconnect", namespace="/indexes")
+def on_disconnect_indexes(sid):
+    try:
+        if sid in user_tasks:
+            # Stop the task gracefully if it exists
+            user_tasks[sid]["stop_event"].set()
+            user_tasks[sid]["thread"].join()
+            del user_tasks[sid]
+        print("Disconnected from stock namespace")
+        emit("disconnect", {"message": "Disconnected from stock namespace"})
+    except Exception as e:
+        emit("error", {"error": str(e)})
+        return
 
 
+@socketio.on("subscribe", namespace="/indexes")
+def on_subscribe_indexes():
+    try:
+        if not is_market_open():
+            print("Market is closed. Closing all tasks...")
+            close_market_tasks()  # Stop all tasks and clear the dictionary
+            emit("error", {"error": "Stock Market Closed - Live Data Not Available"})
+            return
+
+        sid = request.sid
+        # Stop any existing task for this user
+        if sid in user_tasks:
+            user_tasks[sid]["stop_event"].set()
+            user_tasks[sid]["thread"].join()
+
+        # Create a new stop event and thread for the subscription
+        stop_event = gevent.event.Event()
+        thread = gevent.spawn(send_index_data)
+        user_tasks[sid] = {"thread": thread, "stop_event": stop_event}
+        print("Subscribe - User Tasks:", user_tasks)
+        emit("message", {"message": "Subscribed to indexes data"})
+    except Exception as e:
+        emit("error", {"error": str(e)})
+        return
+
+
+# Stock namespaces # Need To Improve
 @socketio.on("connect", namespace="/stock")
-def on_connect():
-    print("Connected to stock namespace")
-    emit("message", {"message": "Connected to stock namespace"})
+def on_connect_stock():
+    try:
+        if not is_market_open():
+            print("Market is closed. Closing all tasks...")
+            close_market_tasks()  # Stop all tasks and clear the dictionary
+            emit("error", {"error": "Stock Market Closed - Live Data Not Available"})
+            return
+        print("Connected to stock namespace")
+        emit("message", {"message": "Connected to stock namespace"})
+    except Exception as e:
+        emit("error", {"error": str(e)})
+        return
 
 
 @socketio.on("disconnect", namespace="/stock")
-def on_disconnect(sid):
+def on_disconnect_stock(sid):
     if sid in user_tasks:
         # Stop the task gracefully if it exists
         user_tasks[sid]["stop_event"].set()
@@ -268,7 +362,12 @@ def on_disconnect(sid):
 
 
 @socketio.on("subscribe", namespace="/stock")
-def on_subscribe(data):
+def on_subscribe_stock(data):
+    if not is_market_open():
+        print("Market is closed. Closing all tasks...")
+        close_market_tasks()  # Stop all tasks and clear the dictionary
+        emit("error", {"error": "Stock Market Closed - Live Data Not Available"})
+        return
     sid = request.sid
     expiration_date = data.get("expirationDate") or None
     near_price = data.get("nearPrice") or None
@@ -301,7 +400,12 @@ def on_subscribe(data):
 
 
 @socketio.on("update", namespace="/stock")
-def on_update_symbol(data):
+def on_update_stock(data):
+    if not is_market_open():
+        print("Market is closed. Closing all tasks...")
+        close_market_tasks()  # Stop all tasks and clear the dictionary
+        emit("error", {"error": "Stock Market Closed - Live Data Not Available"})
+        return
     sid = request.sid
     expiration_date = data.get("expirationDate") or None
     near_price = data.get("nearPrice") or None
@@ -334,15 +438,13 @@ def on_update_symbol(data):
 # Graceful shutdown handler // Need To Improve
 def handle_shutdown(signal, frame):
     print("\nShutting down gracefully...")
-    for sid, task in user_tasks.items():
-        task["stop_event"].set()  # Signal the greenlet to stop
-        task["thread"].kill()  # Kill the greenlet
+    close_market_tasks()  # Stop all tasks and clear the dictionary
     sys.exit(0)
 
 
 # Register signal handlers for graceful shutdown
-signal.signal(signal.SIGINT, handle_shutdown) 
-signal.signal(signal.SIGTERM, handle_shutdown)  
+signal.signal(signal.SIGINT, handle_shutdown)
+signal.signal(signal.SIGTERM, handle_shutdown)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
